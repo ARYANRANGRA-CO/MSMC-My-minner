@@ -1,1 +1,1 @@
-python msmc.py
+python MSMC.py

